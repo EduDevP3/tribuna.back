@@ -22,7 +22,7 @@ app.set('trust proxy', 1);
 
 //el mugre cors >:v
 const corsOptions = {
-  origin: ['http://localhost:3001', 'https://notifinance-es.netlify.app', 'http://localhost:8000', 'http://localhost:3000'],
+  origin: ['http://localhost:3001', 'https://notifinance-es.netlify.app', 'http://localhost:8000', 'http://localhost:3000', 'https://tribuna-teal.vercel.app', 'https://tribuna-mx.vercel.app', 'https://admin-tribuna.onrender.com'],
   credentials: true,
 };
 // Aplicamos el middleware de CORS con las opciones configuradas
