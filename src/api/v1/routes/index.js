@@ -1,0 +1,26 @@
+import { Router } from 'express';
+import authRoutes from './authRoutes.js';
+import clientAuthRoutes from './clientAuth.Routes.js';
+import productRoutes from './productRoutes.js';
+import categoryRoutes from './categoryRoutes.js';
+import orderRoutes from './orderRoutes.js';
+import clientRoutes from './clientRoutes.js';
+import config from '../../../config/config.js';
+
+const routerAPI = (app) => {
+  const router = Router();
+  const api = config.API_URL;
+
+  app.use(api, router);
+
+  router.use('/auth', authRoutes);
+  router.use('/client/auth', clientAuthRoutes);
+  router.use('/products', productRoutes);
+  router.use('/categories', categoryRoutes);
+  router.use('/orders', orderRoutes);
+  router.use('/clients', clientRoutes);
+
+  return router;
+};
+
+export default routerAPI;
