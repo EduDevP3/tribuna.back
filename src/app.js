@@ -45,14 +45,15 @@ const api = config.API_URL;
 
 
 
-// Endpoint para mantener vivo el servicio y verificar salud
-app.get(`${api}/ping`, (req, res) => {
+// Endpoint para mantener vivo el servicio y verificar salud (Root and API)
+app.get(['/ping', `${api}/ping`], (req, res) => {
   try {
     const dbStatus = (mongoose && mongoose.connection && mongoose.connection.readyState === 1) ? 'Connected' : 'Disconnected';
     res.status(200).json({
       status: 'pong',
       database: dbStatus,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      api_prefix: api
     });
   } catch (error) {
     console.error("❌ Ping error:", error.message);
@@ -60,9 +61,9 @@ app.get(`${api}/ping`, (req, res) => {
   }
 });
 
-app.get(`${api}`, (req, res) => {
+app.get(['/', `${api}`], (req, res) => {
   res.send(
-    `<h1>Tribuna MX API</h1> <p>Status: Running</p><p>Documentación: <b>${api}/api-docs</b></p>`
+    `<h1>Tribuna MX API</h1> <p>Status: Running</p><p>Prefix: <b>${api}</b></p><p>Documentación: <b>${api}/api-docs</b></p>`
   );
 })
 

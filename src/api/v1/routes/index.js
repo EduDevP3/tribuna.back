@@ -11,7 +11,8 @@ const routerAPI = (app) => {
   const router = Router();
   const api = config.API_URL;
 
-  app.use(api, router);
+  // Mount at both the configured prefix and root for resilience in production
+  app.use([api, '/'], router);
 
   router.use('/auth', authRoutes);
   router.use('/client/auth', clientAuthRoutes);
