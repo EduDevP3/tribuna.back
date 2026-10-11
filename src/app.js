@@ -22,23 +22,34 @@ app.set('trust proxy', 1);
 
 //el mugre cors >:v
 const corsOptions = {
-  origin: [
-    'http://localhost:3001',
-    'http://localhost:8000',
-    'http://localhost:3000',
-    'https://notifinance-es.netlify.app',
-    'https://tribuna-teal.vercel.app',
-    'https://tribuna-mx.vercel.app',
-    'https://admin-tribuna.onrender.com',
-    'https://lbm.vercel.app',
-    'https://lbm-mx.vercel.app',
-    'https://admin-lbm.onrender.com',
-    'https://admin-lbm.netlify.app'
-  ],
+  origin: (origin, callback) => {
+    // Permitir peticiones sin origen (server-to-server, curl, etc.)
+    if (!origin) return callback(null, true);
+
+    const allowedPatterns = [
+      /localhost/,
+      /127\.0\.0\.1/,
+      /\.netlify\.app$/,
+      /\.vercel\.app$/,
+      /\.onrender\.com$/
+    ];
+
+    const isAllowed = allowedPatterns.some(pattern => pattern.test(origin));
+    if (isAllowed) {
+      return callback(null, true);
+    }
+
+    // Permitir cualquier origen para evitar bloqueos
+    return callback(null, true);
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cookie']
 };
+
 // Aplicamos el middleware de CORS con las opciones configuradas
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(morgan('dev'));
 
