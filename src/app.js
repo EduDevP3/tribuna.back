@@ -75,7 +75,7 @@ app.get(['/ping', `${api}/ping`], (req, res) => {
 
 app.get(['/', `${api}`], (req, res) => {
   res.send(
-    `<h1>LBM API</h1> <p>Status: Running</p><p>Prefix: <b>${api}</b></p><p>Documentación: <b>${api}/api-docs</b></p>`
+    `<h1>LBM - La Barata Mayoreo API</h1> <p>Status: Running</p><p>Prefix: <b>${api}</b></p><p>Documentación: <b>${api}/api-docs</b></p>`
   );
 })
 
