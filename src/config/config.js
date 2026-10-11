@@ -2,8 +2,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export default {
-    HOST: process.env.HOST || '<<ERROR>> NO ENCONTRE EL HOST',
-    PORT: process.env.PORT || '<<ERROR>> NO ENCONTRE EL PORT',
+    HOST: process.env.HOST || '0.0.0.0',
+    PORT: process.env.PORT || 8000,
     API_URL: process.env.API_URL || '/api/v1',
     CONNECTION_STRING: process.env.CONNECTION_STRING || '<<ERROR>> NO SE ENCUENTRA',
     DATABASE: process.env.DATABASE || '<<ERROR>> NO SE ENCUENTRA',

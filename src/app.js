@@ -22,7 +22,19 @@ app.set('trust proxy', 1);
 
 //el mugre cors >:v
 const corsOptions = {
-  origin: ['http://localhost:3001', 'https://notifinance-es.netlify.app', 'http://localhost:8000', 'http://localhost:3000', 'https://tribuna-teal.vercel.app', 'https://tribuna-mx.vercel.app', 'https://admin-tribuna.onrender.com'],
+  origin: [
+    'http://localhost:3001',
+    'http://localhost:8000',
+    'http://localhost:3000',
+    'https://notifinance-es.netlify.app',
+    'https://tribuna-teal.vercel.app',
+    'https://tribuna-mx.vercel.app',
+    'https://admin-tribuna.onrender.com',
+    'https://lbm.vercel.app',
+    'https://lbm-mx.vercel.app',
+    'https://admin-lbm.onrender.com',
+    'https://admin-lbm.netlify.app'
+  ],
   credentials: true,
 };
 // Aplicamos el middleware de CORS con las opciones configuradas
@@ -63,7 +75,7 @@ app.get(['/ping', `${api}/ping`], (req, res) => {
 
 app.get(['/', `${api}`], (req, res) => {
   res.send(
-    `<h1>Tribuna MX API</h1> <p>Status: Running</p><p>Prefix: <b>${api}</b></p><p>Documentación: <b>${api}/api-docs</b></p>`
+    `<h1>LBM API</h1> <p>Status: Running</p><p>Prefix: <b>${api}</b></p><p>Documentación: <b>${api}/api-docs</b></p>`
   );
 })
 
