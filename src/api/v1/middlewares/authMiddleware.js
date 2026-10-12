@@ -1,24 +1,34 @@
 import jwt from 'jsonwebtoken';
-import config from '../../../config/config';  // Importa la clave secreta desde la configuración
+import config from '../../../config/config';
 
-const SECRET_KEY = config.JWT_SECRET;  // Utilizamos la clave secreta desde la configuración
+const SECRET_KEY = config.JWT_SECRET;
 
-// Middleware para verificar el token en solicitudes protegidas
+/**
+ * Middleware para verificar el token JWT de Administradores.
+ * Soporta autenticación híbrida: Cookie HttpOnly 'authToken' o Header 'Authorization: Bearer <token>'.
+ */
 export const authenticateToken = (req, res, next) => {
-  const token = req.cookies.authToken;  // Obtener el token desde las cookies
+  let token = req.cookies && req.cookies.authToken;
+
+  // Fallback seguro: Intentar obtener desde el header Authorization
+  if (!token && req.headers.authorization) {
+    const authHeader = req.headers.authorization;
+    if (authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+  }
 
   if (!token) {
-    return res.status(401).json({ message: 'No autorizado, token no encontrado' });
+    return res.status(401).json({ message: 'No autorizado, token administrativo no encontrado' });
   }
 
   // Verificar el token usando la clave secreta
   jwt.verify(token, SECRET_KEY, (err, user) => {
     if (err) {
-      return res.status(403).json({ message: 'Token inválido o expirado' });
+      return res.status(403).json({ message: 'Token administrativo inválido o expirado' });
     }
 
-    req.userTk = user;  // Agregar el usuario al objeto de la solicitud
-    console.log(`User '${user.nombre}' accessed ${req.method} ${req.originalUrl}`);
-    next();  // Continuar con la solicitud
+    req.userTk = user;
+    next();
   });
 };

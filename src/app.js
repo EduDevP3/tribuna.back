@@ -1,29 +1,34 @@
-// D:\ITTSPACE\backend\src\app.js
+// LBM (La Barata Mayoreos) - Main Express Application
 import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 
 import { mongoose } from './config/database.config';
-
-//Edu.v: imports Routes
-import routeAPI from './api/v1/routes/index';
 import config from './config/config';
-import cookieParser from 'cookie-parser';
+import routeAPI from './api/v1/routes/index';
+import { mongoSanitize } from './api/v1/middlewares/mongoSanitize.middleware';
+import { apiLimiter } from './api/v1/middlewares/rateLimitMiddleware';
 
 const app = express();
 
 app.set('port', config.PORT);
-
-app.use(cookieParser());
-app.use(helmet());
-
 app.set('trust proxy', 1);
 
-//el mugre cors >:v
+// 1. Cabeceras de Seguridad con Helmet optimizadas para API REST multiplataforma
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false // Desactivado para no interferir con endpoints JSON/Swagger
+}));
+
+// 2. Cookie Parser
+app.use(cookieParser());
+
+// 3. CORS Resiliente para Frontends en Netlify, Vercel, Render y Localhost
 const corsOptions = {
   origin: (origin, callback) => {
-    // Permitir peticiones sin origen (server-to-server, curl, etc.)
+    // Permitir peticiones server-to-server, Postman, curl
     if (!origin) return callback(null, true);
 
     const allowedPatterns = [
@@ -39,36 +44,38 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    // Permitir cualquier origen para evitar bloqueos
+    // Permitir orígenes para evitar bloqueos imprevistos en despliegues
     return callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cookie']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cookie', 'x-admin-key']
 };
 
-// Aplicamos el middleware de CORS con las opciones configuradas
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-app.use(morgan('dev'));
+// 4. Logger de Peticiones
+if (process.env.NODE_ENV !== 'test') {
+  app.use(morgan('dev'));
+}
 
+// 5. Parseo de Cuerpos HTTP con límites seguros para prevenir Memory Exhaustion DoS
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
+// 6. Protección contra Inyecciones NoSQL en MongoDB
+app.use(mongoSanitize);
 
-// Aceptar JSONsñ
-app.use(express.json({ limit: '11mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// 7. Rate Limiter General para la API
+app.use('/api', apiLimiter);
 
-// Routes
-
-
+// 8. Registro de Rutas de la API
 routeAPI(app);
 
 const api = config.API_URL;
 
-
-
-// Endpoint para mantener vivo el servicio y verificar salud (Root and API)
+// 9. Endpoint de Salud y Keep-Alive (Monitoreo de MongoDB Atlas)
 app.get(['/ping', `${api}/ping`], (req, res) => {
   try {
     const dbStatus = (mongoose && mongoose.connection && mongoose.connection.readyState === 1) ? 'Connected' : 'Disconnected';
@@ -84,22 +91,44 @@ app.get(['/ping', `${api}/ping`], (req, res) => {
   }
 });
 
+// 10. Vista de Bienvenida en la Raíz
 app.get(['/', `${api}`], (req, res) => {
   res.send(
-    `<h1>LBM - La Barata Mayoreos API</h1> <p>Status: Running</p><p>Prefix: <b>${api}</b></p><p>Documentación: <b>${api}/api-docs</b></p>`
+    `<h1>LBM - La Barata Mayoreos API</h1> <p>Status: Running</p><p>Prefix: <b>${api}</b></p><p>Documentación: <b>${api}/ping</b></p>`
   );
-})
-
-// Swagger Docs
-
-
-
-
-// Middleware para el manejo de errores
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).send('Something went wrong!');
 });
 
-// Export App
+// 11. Manejador Global Centralizado de Errores (JSON Estructurado)
+app.use((err, req, res, next) => {
+  console.error("❌ Error capturado en Middleware Global:", err);
+
+  // Manejo de error de tamaño excedido en Multer
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({
+      status: 'error',
+      message: 'El archivo excede el tamaño máximo permitido (10MB).'
+    });
+  }
+
+  // Manejo de JSON malformado
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Cuerpo de la petición JSON malformado.'
+    });
+  }
+
+  const isProduction = process.env.NODE_ENV === 'production';
+  const statusCode = err.status || err.statusCode || 500;
+  const message = isProduction && statusCode === 500
+    ? 'Ocurrió un error interno en el servidor.'
+    : (err.message || 'Error interno del servidor.');
+
+  res.status(statusCode).json({
+    status: 'error',
+    message,
+    ...(isProduction ? {} : { stack: err.stack })
+  });
+});
+
 export default app;

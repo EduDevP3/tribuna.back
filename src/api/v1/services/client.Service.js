@@ -1,4 +1,5 @@
 import { Client } from '../models/clientModel.js';
+import { isValidMongoId } from '../utils/security.utils.js';
 
 /**
  * Creates a new client.
@@ -22,13 +23,16 @@ export const createClientService = async (clientData) => {
  * Retrieves all clients from the database.
  * @returns {Promise<Array<object>>} A list of all clients.
  */
-export const getAllClientsService = async (page, limit) => {
+export const getAllClientsService = async (page = 1, limit = 10) => {
   try {
-    const skip = (page - 1) * limit;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10)); // Límite máximo 100
+    const skip = (pageNum - 1) * limitNum;
+
     const clients = await Client.find({})
       .sort({ lastName: 1 })
       .skip(skip)
-      .limit(limit)
+      .limit(limitNum)
       .lean({ virtuals: true });
     const total = await Client.countDocuments({});
     return { clients, total };
@@ -44,6 +48,7 @@ export const getAllClientsService = async (page, limit) => {
  */
 export const getClientByIdService = async (id) => {
   try {
+    if (!isValidMongoId(id)) return null;
     const client = await Client.findById(id).lean({ virtuals: true });
     return client;
   } catch (error) {
@@ -62,6 +67,7 @@ export const getClientByIdService = async (id) => {
  */
 export const updateClientService = async (id, updateData) => {
   try {
+    if (!isValidMongoId(id)) return null;
     const updatedClient = await Client.findByIdAndUpdate(id, updateData, { new: true });
     return updatedClient;
   } catch (error) {
@@ -79,6 +85,7 @@ export const updateClientService = async (id, updateData) => {
  */
 export const deleteClientService = async (id) => {
   try {
+    if (!isValidMongoId(id)) return null;
     const deletedClient = await Client.findByIdAndDelete(id);
     return deletedClient;
   } catch (error) {

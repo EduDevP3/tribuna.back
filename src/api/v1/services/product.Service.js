@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Product from '../models/productModel.js';
 import Category from '../models/categoryModel.js'; // Import Category model
 import { uploadImageStream, deleteImage } from '../../../config/cloudinary.config.js';
+import { escapeRegex, isValidMongoId } from '../utils/security.utils.js';
 
 export const createProductService = async (productData, imageBuffer) => {
   try {
@@ -31,6 +32,10 @@ export const createProductService = async (productData, imageBuffer) => {
 
 export const updateProductService = async (id, productData, imageBuffer) => {
   try {
+    if (!isValidMongoId(id)) {
+      return { error: 'Invalid product ID format', status: 400 };
+    }
+
     const product = await Product.findById(id);
     if (!product) {
       return { error: 'Product not found', status: 404 };
@@ -93,6 +98,10 @@ export const updateProductService = async (id, productData, imageBuffer) => {
 
 export const deleteProductService = async (id) => {
   try {
+    if (!isValidMongoId(id)) {
+      return { error: 'Invalid product ID format', status: 400 };
+    }
+
     const product = await Product.findById(id);
     if (!product) {
       return { error: 'Product not found', status: 404 };
@@ -100,12 +109,9 @@ export const deleteProductService = async (id) => {
 
     // Delete image from Cloudinary
     if (product.image_url) {
-      // Extract the full publicId from the existing image_url based on the new folder pattern
-      // Example: image_url = "https://res.cloudinary.com/deshvpfic/image/upload/products/CATEGORY/SKU.jpg"
-      // Public ID would be "products/CATEGORY/SKU"
       const publicIdToDelete = product.image_url.substring(
-        product.image_url.lastIndexOf("upload/") + 7, // index after "upload/"
-        product.image_url.lastIndexOf(".") // index before file extension
+        product.image_url.lastIndexOf("upload/") + 7,
+        product.image_url.lastIndexOf(".")
       );
       await deleteImage(publicIdToDelete);
     }
@@ -125,30 +131,34 @@ export const getProductsService = async (options) => {
   try {
     const { page = 1, limit = 10, sortBy = '_id', sortOrder = 'desc', search, category } = options;
 
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10)); // Límite máximo de 100 para evitar DoS de memoria
     const skip = (pageNum - 1) * limitNum;
 
     const query = {};
 
-    if (category) {
-      // Perform a case-insensitive exact match on the category name
-      query.category = { $regex: `^${category}$`, $options: 'i' };
+    if (category && typeof category === 'string') {
+      const safeCategory = escapeRegex(category);
+      if (safeCategory) {
+        query.category = { $regex: `^${safeCategory}$`, $options: 'i' };
+      }
     }
 
-    if (search) {
-      const searchRegex = new RegExp(search, 'i');
-      query.$or = [
-        { title: searchRegex },
-        { sku: searchRegex },
-      ];
+    if (search && typeof search === 'string') {
+      const safeSearch = escapeRegex(search);
+      if (safeSearch) {
+        const searchRegex = new RegExp(safeSearch, 'i');
+        query.$or = [
+          { title: searchRegex },
+          { sku: searchRegex },
+        ];
+      }
     }
 
     const sort = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
 
     const products = await Product.find(query)
       .select('_id sku title price currency image_url stock category bgColor description handle')
-      // No populate needed as category is a string
       .sort(sort)
       .skip(skip)
       .limit(limitNum)
@@ -179,8 +189,13 @@ export const getAllProductsSimpleService = async () => {
     throw new Error("Internal server error");
   }
 };
+
 export const getProductByIdService = async (id) => {
   try {
+    if (!isValidMongoId(id)) {
+      return { error: "Invalid product ID format", status: 400 };
+    }
+
     const product = await Product.findById(id).lean();
     if (!product) {
       return { error: "Product not found", status: 404 };
@@ -188,7 +203,6 @@ export const getProductByIdService = async (id) => {
     return product;
   } catch (error) {
     console.error("❌ Error in getProductByIdService:", error.message);
-    // Handle cases like invalid ObjectId format
     if (error.kind === 'ObjectId') {
       return { error: "Invalid product ID format", status: 400 };
     }

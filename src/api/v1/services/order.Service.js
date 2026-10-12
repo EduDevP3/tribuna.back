@@ -1,6 +1,7 @@
 import { Order } from '../models/orderModel.js';
 import Product from '../models/productModel.js';
-import { Client } from '../models/clientModel.js'; // Corrected import
+import { Client } from '../models/clientModel.js';
+import { escapeRegex, isValidMongoId } from '../utils/security.utils.js';
 
 export const createOrderService = async (orderData) => {
   const { orderItems, shippingAddress, client: clientId } = orderData;
@@ -13,8 +14,8 @@ export const createOrderService = async (orderData) => {
     throw new Error('No shipping address');
   }
 
-  if (!clientId) {
-    throw new Error('No client');
+  if (!clientId || !isValidMongoId(clientId)) {
+    throw new Error('Invalid or missing client ID');
   }
 
   const client = await Client.findById(clientId);
@@ -22,9 +23,12 @@ export const createOrderService = async (orderData) => {
     throw new Error('Client not found');
   }
 
-  // 1. Get product details from the database
+  // 1. Obtener detalles del producto verificados desde la base de datos
   const populatedOrderItems = await Promise.all(
     orderItems.map(async (item) => {
+      if (!isValidMongoId(item.product)) {
+        throw new Error(`Invalid Product ID: ${item.product}`);
+      }
       const product = await Product.findById(item.product);
       if (!product) {
         throw new Error(`Product with ID ${item.product} not found`);
@@ -40,20 +44,18 @@ export const createOrderService = async (orderData) => {
     })
   );
 
-  // 2. Calculate prices based on 2x1000 promotion
+  // 2. Calcular precios en el servidor basados en la promoción 2x1000
   const totalQuantity = populatedOrderItems.reduce((acc, item) => acc + item.quantity, 0);
   const pairs = Math.floor(totalQuantity / 2);
   const singles = totalQuantity % 2;
 
-  // Logic: 2 for 1000, 1 for 600
+  // Lógica: 2 por $1,000, 1 por $600
   const itemsPrice = (pairs * 1000) + (singles * 600);
+  const taxPrice = 0;
+  const shippingPrice = 0;
+  const totalPrice = itemsPrice;
 
-  const taxPrice = 0; // Simplified for this project
-  const shippingPrice = totalQuantity >= 2 ? 0 : 0; // In this project, itemsPrice already considers the "A COTIZAR" total if 1 item
-
-  const totalPrice = itemsPrice; // Total final de los artículos
-
-  // 3. Create a new order
+  // 3. Crear el nuevo pedido
   const order = new Order({
     orderItems: populatedOrderItems,
     client: clientId,
@@ -65,30 +67,32 @@ export const createOrderService = async (orderData) => {
   });
 
   const createdOrder = await order.save();
-
   return createdOrder;
 };
 
 export const getOrdersService = async (options) => {
   const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search } = options;
 
-  const pageNum = parseInt(page, 10);
-  const limitNum = parseInt(limit, 10);
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10)); // Tope de 100 items por consulta
   const skip = (pageNum - 1) * limitNum;
 
   const sort = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
 
   let query = {};
-  if (search) {
-    query = {
-      $expr: {
-        $regexMatch: {
-          input: { $toString: "$_id" },
-          regex: search,
-          options: "i"
+  if (search && typeof search === 'string') {
+    const safeSearch = escapeRegex(search);
+    if (safeSearch) {
+      query = {
+        $expr: {
+          $regexMatch: {
+            input: { $toString: "$_id" },
+            regex: safeSearch,
+            options: "i"
+          }
         }
-      }
-    };
+      };
+    }
   }
 
   const orders = await Order.find(query)
@@ -109,6 +113,10 @@ export const getOrdersService = async (options) => {
 };
 
 export const getOrderByIdService = async (id) => {
+  if (!isValidMongoId(id)) {
+    throw new Error('Invalid order ID format');
+  }
+
   const order = await Order.findById(id).populate('client', 'name email');
   if (!order) {
     throw new Error('Order not found');
@@ -117,8 +125,11 @@ export const getOrderByIdService = async (id) => {
 };
 
 export const updateOrderStatusService = async (id, status) => {
-  const order = await Order.findById(id);
+  if (!isValidMongoId(id)) {
+    throw new Error('Invalid order ID format');
+  }
 
+  const order = await Order.findById(id);
   if (!order) {
     throw new Error('Order not found');
   }
@@ -140,13 +151,15 @@ export const updateOrderStatusService = async (id, status) => {
 };
 
 export const deleteOrderService = async (id) => {
-  const order = await Order.findById(id);
+  if (!isValidMongoId(id)) {
+    throw new Error('Invalid order ID format');
+  }
 
+  const order = await Order.findById(id);
   if (!order) {
     throw new Error('Order not found');
   }
 
   await Order.findByIdAndDelete(id);
-
   return { message: 'Order deleted successfully' };
 };

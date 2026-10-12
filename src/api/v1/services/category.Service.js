@@ -1,4 +1,5 @@
 import Category from '../models/categoryModel.js';
+import { isValidMongoId } from '../utils/security.utils.js';
 
 /**
  * Creates a new category.
@@ -15,7 +16,6 @@ export const createCategoryService = async (categoryData) => {
     await newCategory.save();
     return newCategory;
   } catch (error) {
-    // Handle potential duplicate key error for name
     if (error.code === 11000) {
       throw new Error('A category with this name already exists.');
     }
@@ -27,14 +27,18 @@ export const createCategoryService = async (categoryData) => {
  * Retrieves all categories from the database.
  * @returns {Promise<Array<object>>} A list of all categories.
  */
-export const getAllCategoriesService = async (page, limit) => {
+export const getAllCategoriesService = async (page = 1, limit) => {
   try {
-    const skip = (page - 1) * limit;
-    const categories = await Category.find({})
-      .sort({ name: 1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    let categoriesQuery = Category.find({}).sort({ name: 1 });
+
+    if (limit) {
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+      const skip = (pageNum - 1) * limitNum;
+      categoriesQuery = categoriesQuery.skip(skip).limit(limitNum);
+    }
+
+    const categories = await categoriesQuery.lean();
     const total = await Category.countDocuments({});
     return { categories, total };
   } catch (error) {
@@ -49,11 +53,12 @@ export const getAllCategoriesService = async (page, limit) => {
  */
 export const getCategoryByIdService = async (id) => {
   try {
+    if (!isValidMongoId(id)) return null;
     const category = await Category.findById(id).lean();
     return category;
   } catch (error) {
     if (error.kind === 'ObjectId') {
-      return null; // Or throw a custom "not found" error
+      return null;
     }
     throw error;
   }
@@ -67,18 +72,19 @@ export const getCategoryByIdService = async (id) => {
  */
 export const updateCategoryService = async (id, updateData) => {
   try {
+    if (!isValidMongoId(id)) return null;
+
     const category = await Category.findById(id);
     if (!category) {
       return null;
     }
 
-    // If name is being updated, also update the handle
     if (updateData.name) {
       category.name = updateData.name;
       category.handle = updateData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     }
-    if (updateData.description) {
-        category.description = updateData.description;
+    if (updateData.description !== undefined) {
+      category.description = updateData.description;
     }
     
     const updatedCategory = await category.save();
@@ -98,11 +104,7 @@ export const updateCategoryService = async (id, updateData) => {
  */
 export const deleteCategoryService = async (id) => {
   try {
-    // Optional: Check if any products are using this category before deleting.
-    // const products = await Product.find({ category: id });
-    // if (products.length > 0) {
-    //   throw new Error('Cannot delete category as it is currently in use by products.');
-    // }
+    if (!isValidMongoId(id)) return null;
     const deletedCategory = await Category.findByIdAndDelete(id);
     return deletedCategory;
   } catch (error) {
